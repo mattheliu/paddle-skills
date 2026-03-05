@@ -20,17 +20,15 @@ description: |
 # 查看 CI 失败的具体 job
 gh pr checks
 
-# 检查 develop/main 分支最近的 CI 状态
+# 检查 develop 分支最近的 CI 状态
 gh run list --branch develop --limit 5
-
-# 如果 develop 分支也有相同失败，说明不是当前 PR 的问题
 ```
 
 **判断依据**：
 
-- 如果 develop 分支 CI 正常，当前 PR 失败 → **PR 引入的问题**
-- 如果 develop 分支也失败，且错误相同 → **非 PR 问题，是已有问题**
-- 如果是 flaky test → 需要进一步分析是否与 PR 改动相关
+- develop 分支 CI 正常，当前 PR 失败 → **PR 引入的问题**
+- develop 分支也失败，且错误相同 → **非 PR 问题，是已有问题**
+- 间歇性失败 → **Flaky test，需进一步分析**
 
 ### 2. 检查其他 PR 是否有相似问题
 
@@ -72,7 +70,7 @@ gh run view <RUN_ID> --log-failed 2>&1 | tail -200
 
 ### 证据
 
-[说明判断依据，如 develop 分支 CI 状态、其他 PR 是否有相同问题等]
+[说明判断依据]
 
 ### 错误摘要
 
@@ -93,21 +91,62 @@ gh run view <RUN_ID> --log-failed 2>&1 | tail -200
 - [ ] CI 重新运行
 ```
 
-## Paddle 常见 CI 问题
+## Paddle CI 检查项
 
-### Pre-commit 失败
+### PR 模板检查 (CheckPRTemplate)
+
+检查 PR 描述是否符合模板要求。
+
+**失败处理**：
+
+- 按照 [PR 模板](https://github.com/PaddlePaddle/Paddle/blob/develop/.github/PULL_REQUEST_TEMPLATE.md) 补充完整 PR 描述
+- 参考 [PR 模板说明](https://github.com/PaddlePaddle/Paddle/wiki/PULL-REQUEST-TEMPLATE--REFERENCE)
+
+### 代码风格检查 (Codestyle-Check)
+
+运行 pre-commit 检查代码风格，包括 clang-format、cpplint、ast-grep 等。
+
+**本地修复**：
 
 ```bash
-# 本地运行
+# 安装依赖
+pip install pre-commit==2.17.0 cpplint==1.6.0 clang-format==13.0.0
+
+# 运行检查并自动修复
+pre-commit run --files $(git diff --name-only origin/develop)
+
+# 或检查所有文件
 pre-commit run --all-files
-# 或
-prek
 ```
+
+### Approval 检查
+
+某些目录的修改需要特定 reviewer 的 approve。
+
+**处理方式**：
+
+- 查看 CI 日志中提示的 required approvers
+- 在 PR 中 @ 对应的 reviewer 请求 review
+
+### 主 CI 流水线
+
+| Job | 说明 |
+|-----|------|
+| **Linux-CPU** | CPU 编译和单测 |
+| **Linux-XPU** | 昆仑芯 XPU 测试 |
+| **Linux-DCU** | 海光 DCU 测试 |
+| **Linux-NPU** | 昇腾 NPU 测试 |
+| **Mac-CPU** | macOS 编译测试 |
+| **PR-CI-SOT** | SOT (Symbolic OpTest) 测试 |
+| **Distribute-stable** | 分布式训练测试 |
 
 ### 单元测试失败
 
 ```bash
-# 本地复现
+# 本地复现（需要编译 Paddle）
+ctest -R test_name -V
+
+# 或使用 pytest
 pytest path/to/test_file.py::test_name -v --tb=long
 ```
 
@@ -117,7 +156,7 @@ pytest path/to/test_file.py::test_name -v --tb=long
 
 ```bash
 for i in {1..10}; do
-  pytest path/to/test.py::test_name -v || echo "Failed on run $i"
+  ctest -R test_name -V || echo "Failed on run $i"
 done
 ```
 
@@ -126,6 +165,11 @@ done
 - **禁止通过降低质量门槛来通过 CI**
 - **禁止在没有分析的情况下盲目重试**
 - **禁止跳过测试来"修复" CI**
+
+## 参考文档
+
+- [Paddle CI 手册](https://github.com/PaddlePaddle/Paddle/wiki/paddle_ci_manual)
+- [PR 模板说明](https://github.com/PaddlePaddle/Paddle/wiki/PULL-REQUEST-TEMPLATE--REFERENCE)
 
 ## 完成后
 
